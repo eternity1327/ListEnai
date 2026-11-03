@@ -3,7 +3,7 @@ services:
     name: listenai
     runtime: python
     plan: free
-    region: singapore
+    region: frankfurt
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
