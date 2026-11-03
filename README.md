@@ -106,15 +106,17 @@ Transcribe and generate run in the background; the app polls the session status.
 ## Online server (Render free + Supabase free)
 
 1. Supabase: create a project → **Connect** → copy the **Session pooler** URI (IPv4) and put your database password in it.
-2. Render: **New → Blueprint** → pick this repo (`render.yaml`). Paste `GROQ_API_KEY` and `DATABASE_URL`.
-3. Copy the generated `LISTENAI_APP_KEY` from Render, then build the app:
+2. Google Cloud: Google Auth Platform → create an **Android** client (package `com.gianopsima.listenai` + SHA-1) and a **Web** client.
+3. Render: **New → Blueprint** → pick this repo (`render.yaml`). Set `GROQ_API_KEY`, `DATABASE_URL`, and `GOOGLE_CLIENT_ID` (the Web client ID).
+4. Build the app:
 
 ```powershell
-flutter build apk --dart-define=SERVER_URL=https://YOUR-SERVICE.onrender.com --dart-define=APP_KEY=YOUR-KEY
+flutter build apk --dart-define=SERVER_URL=https://YOUR-SERVICE.onrender.com --dart-define=GOOGLE_CLIENT_ID=YOUR-WEB-CLIENT-ID
 ```
 
 - The free server sleeps after 15 minutes idle; the first request takes about a minute.
 - Supabase free pauses after a week without activity; restore it from the dashboard.
+- Users sign in with Google; each user only sees their own sessions. Without `GOOGLE_CLIENT_ID` (laptop) there is no sign-in.
 - Audio is deleted from the server after transcription. Transcription starts right after upload.
 
 ## Troubleshooting

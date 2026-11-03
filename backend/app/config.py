@@ -8,7 +8,7 @@ OLLAMA_MODEL = os.getenv("LISTENAI_MODEL", "qwen3:8b")
 KEEP_ALIVE = os.getenv("LISTENAI_KEEP_ALIVE", "30m")
 WHISPER_SIZE = os.getenv("LISTENAI_WHISPER", "base")
 
-APP_KEY = os.getenv("LISTENAI_APP_KEY", "")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 
 GROQ_URL = "https://api.groq.com/openai/v1"
 GROQ_KEY = os.getenv("GROQ_API_KEY", "")

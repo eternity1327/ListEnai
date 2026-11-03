@@ -5,3 +5,4 @@ requests==2.34.2
 av==18.1.0
 psycopg[binary]>=3.2,<4
 numpy>=2,<3
+google-auth>=2.30,<3

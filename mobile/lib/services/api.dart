@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/session.dart';
+import 'auth.dart';
 
 class ApiException implements Exception {
   const ApiException(this.message);
@@ -18,9 +19,10 @@ class ApiException implements Exception {
 
 class Api {
   static const _urlKey = 'server_url';
-  static const _appKey = String.fromEnvironment('APP_KEY');
-  static const _headers = {'X-App-Key': _appKey};
-  static const _jsonHeaders = {..._headers, 'Content-Type': 'application/json'};
+  static Map<String, String> get _headers => {
+        if (Auth.idToken != null) 'Authorization': 'Bearer ${Auth.idToken}',
+      };
+  static Map<String, String> get _jsonHeaders => {..._headers, 'Content-Type': 'application/json'};
   static const _wait = Duration(seconds: 90);
   static String baseUrl = const String.fromEnvironment(
     'SERVER_URL',
@@ -111,15 +113,10 @@ class Api {
     Future<http.Response> Function() request, {
     Duration timeout = _wait,
   }) async {
-    final http.Response response;
-    try {
-      response = await request().timeout(timeout);
-    } on SocketException {
-      throw ApiException('Cannot reach the ListenAI server at $baseUrl.');
-    } on TimeoutException {
-      throw const ApiException('The server took too long to respond.');
-    } on http.ClientException {
-      throw ApiException('Cannot reach the ListenAI server at $baseUrl.');
+    var response = await _fetch(request, timeout);
+    if (response.statusCode == 401 && Auth.enabled) {
+      await Auth.refresh();
+      response = await _fetch(request, timeout);
     }
     final body = _decode(utf8.decode(response.bodyBytes, allowMalformed: true));
     if (response.statusCode >= 400) {
@@ -127,6 +124,21 @@ class Api {
       throw ApiException(detail is String ? detail : 'Request failed (${response.statusCode}).');
     }
     return body;
+  }
+
+  static Future<http.Response> _fetch(
+    Future<http.Response> Function() request,
+    Duration timeout,
+  ) async {
+    try {
+      return await request().timeout(timeout);
+    } on SocketException {
+      throw ApiException('Cannot reach the ListenAI server at $baseUrl.');
+    } on TimeoutException {
+      throw const ApiException('The server took too long to respond.');
+    } on http.ClientException {
+      throw ApiException('Cannot reach the ListenAI server at $baseUrl.');
+    }
   }
 
   static dynamic _decode(String text) {

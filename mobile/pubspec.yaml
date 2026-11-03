@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   file_picker: ^10.0.0
+  google_sign_in: ^7.2.0
   http: ^1.4.0
   path_provider: ^2.1.5
   record: ^6.0.0

@@ -6,6 +6,8 @@ from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
 
+from app import config
+
 STORAGE = Path(__file__).resolve().parent.parent / "storage"
 AUDIO_DIR = STORAGE / "audio"
 DB_PATH = STORAGE / "listenai.db"
@@ -15,6 +17,7 @@ ID = "SERIAL PRIMARY KEY" if DATABASE_URL else "INTEGER PRIMARY KEY AUTOINCREMEN
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS sessions (
     id {ID},
+    user_id TEXT,
     title TEXT NOT NULL,
     created_at TEXT NOT NULL,
     audio_path TEXT NOT NULL,
@@ -76,8 +79,18 @@ def insert(sql, params=()):
     return run(f"{sql} RETURNING id", params)[0]["id"]
 
 
+def add_column(table, column, kind):
+    try:
+        execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+    except (sqlite3.OperationalError, psycopg.errors.DuplicateColumn):
+        pass
+
+
 def init():
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     execute(SCHEMA)
     execute(QUESTIONS)
+    add_column("sessions", "user_id", "TEXT")
+    if not config.GOOGLE_CLIENT_ID:
+        execute("UPDATE sessions SET user_id = 'local' WHERE user_id IS NULL")
     execute(RESET_INTERRUPTED)

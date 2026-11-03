@@ -4,9 +4,10 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 
 from app import database as db
+from app.auth import current_user
 from app.schemas import AskRequest, GenerateRequest, TranscriptUpdate
 from app.services import ai, transcription
 
@@ -17,8 +18,8 @@ MAX_BYTES = 300 * 1024 * 1024
 BUSY = {"transcribing", "generating"}
 
 
-def find(session_id):
-    rows = db.query("SELECT * FROM sessions WHERE id = ?", (session_id,))
+def find(session_id, user):
+    rows = db.query("SELECT * FROM sessions WHERE id = ? AND user_id = ?", (session_id, user))
     if not rows:
         raise HTTPException(404, "Session not found.")
     session = rows[0]
@@ -26,8 +27,8 @@ def find(session_id):
     return session
 
 
-def find_idle(session_id):
-    session = find(session_id)
+def find_idle(session_id, user):
+    session = find(session_id, user)
     if session["status"] in BUSY:
         raise HTTPException(409, "This session is still processing.")
     return session
@@ -48,52 +49,65 @@ def save_upload(file):
 
 
 @router.get("")
-def list_sessions():
-    return db.query("SELECT id, title, created_at, status, mode FROM sessions ORDER BY id DESC")
+def list_sessions(user: str = Depends(current_user)):
+    return db.query(
+        "SELECT id, title, created_at, status, mode FROM sessions WHERE user_id = ? ORDER BY id DESC",
+        (user,),
+    )
 
 
 @router.post("", status_code=201)
-def create_session(tasks: BackgroundTasks, title: str = Form(...), file: UploadFile = File(...)):
+def create_session(
+    tasks: BackgroundTasks,
+    title: str = Form(...),
+    file: UploadFile = File(...),
+    user: str = Depends(current_user),
+):
     if not title.strip():
         raise HTTPException(400, "Title is required.")
     path = save_upload(file)
     created_at = datetime.now().isoformat(timespec="seconds")
     session_id = db.insert(
-        "INSERT INTO sessions (title, created_at, audio_path, status) VALUES (?, ?, ?, 'uploaded')",
-        (title.strip(), created_at, str(path)),
+        "INSERT INTO sessions (user_id, title, created_at, audio_path, status) VALUES (?, ?, ?, ?, 'uploaded')",
+        (user, title.strip(), created_at, str(path)),
     )
-    return start_transcription(session_id, tasks)
+    return start_transcription(session_id, tasks, user)
 
 
 @router.get("/{session_id}")
-def get_session(session_id: int):
-    return find(session_id)
+def get_session(session_id: int, user: str = Depends(current_user)):
+    return find(session_id, user)
 
 
 @router.post("/{session_id}/transcribe", status_code=202)
-def start_transcription(session_id: int, tasks: BackgroundTasks):
-    session = find_idle(session_id)
+def start_transcription(session_id: int, tasks: BackgroundTasks, user: str = Depends(current_user)):
+    session = find_idle(session_id, user)
     if not Path(session["audio_path"]).exists():
         raise HTTPException(409, "The audio is no longer on the server. Upload it again.")
     db.execute("UPDATE sessions SET status = 'transcribing', error = NULL, progress = NULL WHERE id = ?", (session_id,))
     tasks.add_task(run_transcription, session_id, session["audio_path"])
-    return find(session_id)
+    return find(session_id, user)
 
 
 @router.put("/{session_id}/transcript")
-def update_transcript(session_id: int, body: TranscriptUpdate):
-    session = find_idle(session_id)
+def update_transcript(session_id: int, body: TranscriptUpdate, user: str = Depends(current_user)):
+    session = find_idle(session_id, user)
     status = "transcribed" if session["status"] == "uploaded" else session["status"]
     db.execute(
         "UPDATE sessions SET transcript = ?, status = ? WHERE id = ?",
         (body.transcript.strip(), status, session_id),
     )
-    return find(session_id)
+    return find(session_id, user)
 
 
 @router.post("/{session_id}/generate", status_code=202)
-def start_generation(session_id: int, body: GenerateRequest, tasks: BackgroundTasks):
-    session = find_idle(session_id)
+def start_generation(
+    session_id: int,
+    body: GenerateRequest,
+    tasks: BackgroundTasks,
+    user: str = Depends(current_user),
+):
+    session = find_idle(session_id, user)
     if not session["transcript"]:
         raise HTTPException(409, "Transcribe the audio first.")
     fallback = "ready" if session["report"] else "transcribed"
@@ -103,12 +117,12 @@ def start_generation(session_id: int, body: GenerateRequest, tasks: BackgroundTa
         (body.mode, body.level, session_id),
     )
     tasks.add_task(run_generation, session_id, session["transcript"], body, fallback)
-    return find(session_id)
+    return find(session_id, user)
 
 
 @router.get("/{session_id}/questions")
-def list_questions(session_id: int):
-    find(session_id)
+def list_questions(session_id: int, user: str = Depends(current_user)):
+    find(session_id, user)
     return db.query(
         "SELECT question, answer FROM questions WHERE session_id = ? ORDER BY id",
         (session_id,),
@@ -116,8 +130,8 @@ def list_questions(session_id: int):
 
 
 @router.post("/{session_id}/ask")
-def ask_question(session_id: int, body: AskRequest):
-    session = find(session_id)
+def ask_question(session_id: int, body: AskRequest, user: str = Depends(current_user)):
+    session = find(session_id, user)
     if not session["transcript"]:
         raise HTTPException(409, "Transcribe the audio first.")
     question = body.question.strip()
@@ -133,8 +147,8 @@ def ask_question(session_id: int, body: AskRequest):
 
 
 @router.delete("/{session_id}", status_code=204)
-def delete_session(session_id: int):
-    session = find_idle(session_id)
+def delete_session(session_id: int, user: str = Depends(current_user)):
+    session = find_idle(session_id, user)
     Path(session["audio_path"]).unlink(missing_ok=True)
     db.execute("DELETE FROM questions WHERE session_id = ?", (session_id,))
     db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))

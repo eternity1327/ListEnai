@@ -5,12 +5,15 @@ import 'package:flutter/material.dart';
 
 import '../models/session.dart';
 import '../services/api.dart';
+import '../services/auth.dart';
 import '../widgets/dialogs.dart';
 import 'record_screen.dart';
 import 'session_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, required this.onSignOut});
+
+  final VoidCallback onSignOut;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -119,6 +122,12 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.dns_outlined),
             tooltip: 'Server address',
           ),
+          if (Auth.enabled)
+            IconButton(
+              onPressed: widget.onSignOut,
+              icon: const Icon(Icons.logout),
+              tooltip: 'Sign out',
+            ),
         ],
         bottom: _uploading
             ? const PreferredSize(
