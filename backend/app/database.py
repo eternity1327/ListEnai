@@ -53,7 +53,7 @@ WHERE status IN ('transcribing', 'generating')
 
 def connect():
     if DATABASE_URL:
-        return psycopg.connect(DATABASE_URL, row_factory=dict_row, prepare_threshold=None)
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row, prepare_threshold=None, connect_timeout=15)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
