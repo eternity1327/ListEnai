@@ -7,6 +7,7 @@ OLLAMA_URL = os.getenv("LISTENAI_OLLAMA", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("LISTENAI_MODEL", "qwen3:8b")
 KEEP_ALIVE = os.getenv("LISTENAI_KEEP_ALIVE", "30m")
 WHISPER_SIZE = os.getenv("LISTENAI_WHISPER", "base")
+CHUNK_WORDS = int(os.getenv("LISTENAI_CHUNK_WORDS", 2500 if CLOUD else 4000))
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 

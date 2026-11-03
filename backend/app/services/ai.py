@@ -11,9 +11,9 @@ from app.schemas import Lesson, Meeting, Quiz
 CONTEXT_TOKENS = 16384
 TIMEOUT_SECONDS = 900
 RETRIES = 3
-CHUNK_WORDS = 60000 if config.CLOUD else 4000
+CONDENSE_ROUNDS = 3
 OLLAMA_DOWN = "Ollama is not running. Start Ollama and try again."
-ASK_WORDS = 2500
+ASK_WORDS = config.CHUNK_WORDS // 2
 ASK_PARTS = 2
 COMMON_WORDS = {
     "the", "and", "are", "was", "for", "how", "why", "who", "what", "when", "where", "which",
@@ -130,7 +130,7 @@ def ask(system, transcript, schema):
         return schema.model_validate_json(chat(system, transcript, schema))
 
 
-def split(transcript, size=CHUNK_WORDS):
+def split(transcript, size=config.CHUNK_WORDS):
     words = transcript.split()
     return [" ".join(words[i:i + size]) for i in range(0, len(words), size)]
 
@@ -147,15 +147,23 @@ def answer(transcript, question):
     return chat(ASK_PROMPT, f"{relevant(transcript, question)}\n\nQuestion: {question}")
 
 
-def condense(transcript, progress):
-    parts = split(transcript)
-    if len(parts) <= 1:
-        return transcript
+def take_notes(text, progress):
+    parts = split(text)
+    budget = f"{NOTES_PROMPT} Keep these notes under {config.CHUNK_WORDS // (len(parts) + 1)} words."
     notes = []
     for number, part in enumerate(parts, 1):
         progress(f"Reading part {number} of {len(parts)}...")
-        notes.append(f"Part {number}:\n{chat(NOTES_PROMPT, part)}")
+        notes.append(f"Part {number}:\n{chat(budget, part)}")
     return "\n\n".join(notes)
+
+
+def condense(transcript, progress):
+    text = transcript
+    for _ in range(CONDENSE_ROUNDS):
+        if len(text.split()) <= config.CHUNK_WORDS:
+            break
+        text = take_notes(text, progress)
+    return text
 
 
 def to_question(item):
