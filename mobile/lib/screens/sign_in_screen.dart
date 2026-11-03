@@ -22,9 +22,9 @@ class _SignInScreenState extends State<SignInScreen> {
       await Auth.signIn();
       widget.onSignedIn();
     } on GoogleSignInException catch (error) {
-      if (mounted && error.code != GoogleSignInExceptionCode.canceled) {
-        toast(context, 'Sign-in failed: ${error.description ?? error.code.name}');
-      }
+      if (mounted) toast(context, 'Sign-in failed: ${error.code.name} ${error.description ?? ''}');
+    } catch (error) {
+      if (mounted) toast(context, 'Sign-in failed: $error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
